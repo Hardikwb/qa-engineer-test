@@ -6,11 +6,10 @@ import { findUserByEmail, createUser } from '../db/database.js';
 const router = express.Router();
 const JWT_SECRET = 'test-secret-key-do-not-use-in-production';
 
-// BUG C: Email validation is too permissive
 function validateEmail(email) {
-  // BUG: This regex allows emails without TLD like "user@domain"
-  const emailRegex = /^[^\s@]+@[^\s@]+$/;
-  return emailRegex.test(email);
+  // Fix C: require a dot-separated domain with a TLD of 2+ chars, so "user@domain" is rejected
+  const emailRegex = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[^\s@.]{2,}$/;
+  return typeof email === 'string' && emailRegex.test(email);
 }
 
 // POST /api/auth/register

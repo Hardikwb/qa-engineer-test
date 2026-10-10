@@ -1,27 +1,48 @@
-import { test } from 'node:test';
+import { test, before, after } from 'node:test';
 import assert from 'node:assert';
+import { startServer, request } from './helpers.js';
 
-/**
- * Auth Routes Tests
- * 
- * Candidates should add tests here for Bug C (email validation)
- * 
- * Example test structure:
- * 
- * test('should reject email without TLD', async () => {
- *   const result = validateEmail('user@domain');
- *   assert.strictEqual(result, false);
- * });
- */
+let server;
+before(async () => { server = await startServer(3101); });
+after(() => server.stop());
 
-test('placeholder test - candidates should add real tests', () => {
-  assert.ok(true);
+const register = email => request(server.baseUrl, '/api/auth/register', {
+  method: 'POST',
+  body: { email, password: 'SecurePass123!', business_name: 'Test Co' }
 });
 
-// TODO: Add tests for:
-// - Valid email acceptance
-// - Invalid email rejection (no TLD, no @, etc.)
-// - Registration with valid data
-// - Registration with invalid email
-// - Login with correct credentials
-// - Login with incorrect credentials
+test('Bug C: register rejects email without TLD (user@domain)', async () => {
+  const res = await register('user@domain');
+  assert.strictEqual(res.status, 400);
+  assert.strictEqual(res.body.error, 'Invalid email format');
+});
+
+test('Bug C: register rejects malformed emails', async () => {
+  for (const email of ['user@', '@domain.com', 'user@domain.', 'user@.com', 'a b@domain.com']) {
+    const res = await register(email);
+    assert.strictEqual(res.status, 400, `${email} should be rejected`);
+  }
+});
+
+test('Bug C: register accepts a valid email', async () => {
+  const res = await register('valid.user@example.co.uk');
+  assert.strictEqual(res.status, 201);
+  assert.ok(res.body.token);
+});
+
+test('login works for the seeded merchant', async () => {
+  const res = await request(server.baseUrl, '/api/auth/login', {
+    method: 'POST',
+    body: { email: 'merchant@test.com', password: 'Test123!' }
+  });
+  assert.strictEqual(res.status, 200);
+  assert.ok(res.body.token);
+});
+
+test('login rejects a wrong password', async () => {
+  const res = await request(server.baseUrl, '/api/auth/login', {
+    method: 'POST',
+    body: { email: 'merchant@test.com', password: 'wrong-password' }
+  });
+  assert.strictEqual(res.status, 401);
+});
